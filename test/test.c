@@ -173,36 +173,74 @@ static void sysent_set_call(int callnum, void* sy_call) {
     }
 }
 
-struct exit_args {
-    char rval_l_[PADL_(int)]; int rval; char rval_r_[PADR_(int)];
-};
-
-typedef int32_t (*exit_fptr_t)(proc_t p, struct exit_args *uap, int *retval);
-
-static exit_fptr_t g_orig_exit = NULL;
-
-
-int32_t my_exit(proc_t p, struct exit_args *uap, int *retval)
-{
-    printf("pid %d calls exit(%d)\n", proc_pid(p), uap->rval);
-    return g_orig_exit(p, uap, retval);
-}
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 static int32_t g_pid = 0; // Contents of debug.killhook.pid
 static int sysctl_killhook_pid SYSCTL_HANDLER_ARGS;
 
 SYSCTL_NODE(_debug, OID_AUTO, killhook, CTLFLAG_RW, 0, "kill hook API");
-SYSCTL_PROC(_debug_killhook, OID_AUTO, pid, (CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_SECURE), &g_pid, 0, sysctl_killhook_pid, "I", "Protected PID");
+SYSCTL_PROC(_debug_killhook, OID_AUTO, pid, (CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_SECURE), &g_pid, 42, sysctl_killhook_pid, "I", "Protected PID");
 
 static int sysctl_killhook_pid(struct sysctl_oid *oidp, void *arg1, int arg2, struct sysctl_req *req)
 {
-    // Do some processing of our own , if neccesary
-    printf("sysctl_killhook_pid: %p, %d, %d\n", arg1, *(int32_t*)arg1, arg2);
-    return sysctl_handle_int( oidp, oidp->oid_arg1 , oidp->oid_arg2 , req );
+    printf("sysctl_killhook_pid: %p (%p), %d, %d\n", oidp->oid_arg1, &g_pid, *(int32_t*)oidp->oid_arg1, oidp->oid_arg2);
+
+    int32_t curPid = g_pid;
+    int res = sysctl_handle_int(oidp, oidp->oid_arg1, oidp->oid_arg2, req);
+
+    if (g_pid != curPid) {
+        printf("PID changed to %d\n", g_pid);
+    }
+    
+    return res;
+}
+
+
+
+/*
+ struct exit_args {
+ char rval_l_[PADL_(int)]; int rval; char rval_r_[PADR_(int)];
+ };
+ 
+ typedef int32_t (*exit_fptr_t)(proc_t p, struct exit_args *uap, int *retval);
+ 
+ static exit_fptr_t g_orig_exit = NULL;
+ 
+ 
+ int32_t my_exit(proc_t p, struct exit_args *uap, int *retval)
+ {
+ printf("pid %d calls exit(%d)\n", proc_pid(p), uap->rval);
+ return g_orig_exit(p, uap, retval);
+ }
+ */
+
+struct kill_args {
+    char pid_l_[PADL_(int)]; int pid; char pid_r_[PADR_(int)];
+    char signum_l_[PADL_(int)]; int signum; char signum_r_[PADR_(int)];
+    char posix_l_[PADL_(int)]; int posix; char posix_r_[PADR_(int)];
+};
+
+static int(*g_orig_kill)(proc_t cp, struct kill_args *uap, __unused int32_t *retval) = NULL;
+
+// TODO: indirect syscall(2), killpg(2), better signal parsing
+
+// kill syscall hook
+int my_kill(proc_t cp, struct kill_args *uap, __unused int32_t *retval)
+{
+    printf("signal %d from pid %d to pid %d\n", uap->signum, proc_pid(cp), uap->pid);
+    
+    if (!g_pid || (uap->pid != g_pid)) {
+        return g_orig_kill(cp, uap, retval);
+    }
+
+    // TODO: process cannot ignore or handle SIGKILL so we intercept it here.
+    // However there are other signals that will terminate a process if it doesn't handle or ignore these signals (i.e. SIGTERM)
+    // We don't handle those here for now.
+    if (uap->signum == SIGKILL) {
+        printf("blocking SIGKILL\n");
+        return EPERM;
+    }
+    
+    return g_orig_kill(cp, uap, retval);
 }
 
 kern_return_t test_start(kmod_info_t * ki, void *d)
@@ -254,12 +292,12 @@ kern_return_t test_start(kmod_info_t * ki, void *d)
     // sysent is in read-only memory since 10.8.
     // good thing that intel architecture allows us to disable vm write protection completely from ring0 with a CR0 bit
     
-    g_orig_exit = (exit_fptr_t) sysent_get_call(SYS_exit);
+    g_orig_kill = sysent_get_call(SYS_kill);
     AsmDisableWriteProtection();
-    sysent_set_call(SYS_exit, (sy_call_t*)my_exit);
+    sysent_set_call(SYS_kill, (sy_call_t*)my_kill);
     AsmEnableWriteProtection();
     
-    printf("original exit @ %p, hooked @ %p\n", g_orig_exit, my_exit);
+    printf("original @ %p, hooked @ %p\n", g_orig_kill, my_kill);
     
     sysctl_register_oid(&sysctl__debug_killhook);
     sysctl_register_oid(&sysctl__debug_killhook_pid);
@@ -272,12 +310,12 @@ kern_return_t test_stop(kmod_info_t *ki, void *d)
     sysctl_unregister_oid(&sysctl__debug_killhook);
     sysctl_unregister_oid(&sysctl__debug_killhook_pid);
     
-    if (g_orig_exit != NULL)
+    if (g_orig_kill != NULL)
     {
         AsmDisableWriteProtection();
-        sysent_set_call(SYS_exit, (sy_call_t*)g_orig_exit);
+        sysent_set_call(SYS_kill, (sy_call_t*)g_orig_kill);
         AsmEnableWriteProtection();
-        printf("original exit @ %p\n", g_orig_exit);
+        printf("original exit @ %p\n", g_orig_kill);
     }
     
     return KERN_SUCCESS;

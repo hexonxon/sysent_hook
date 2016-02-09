@@ -54,6 +54,8 @@
 /* ptrace() syscall */
 #define SYS_ptrace 26
 
+#define	SYS_kill 37
+
 typedef int32_t	sy_call_t (struct proc *, void *, int *);
 typedef void	sy_munge_t (const void *, void *);
 
