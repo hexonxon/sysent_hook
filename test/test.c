@@ -10,12 +10,16 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <mach-o/loader.h>
-#include <kern/task.h>
 #include <mach/mach_types.h>
+
+#include <kern/task.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
 #include <sys/sysctl.h>
+#include <sys/types.h>
+
 #include <libkern/OSMalloc.h>
+#include <libkern/version.h>
 
 #include "arch.h"
 #include "sysent.h"
@@ -102,45 +106,9 @@ static uintptr_t get_data_segment(const struct mach_header_64* mh, uint64_t* out
 }
 
 
-static int get_kernel_version(void)
-{
-    size_t size = 0;
-    
-    if (sysctlbyname("kern.osrelease", NULL, &size, NULL, 0) )
-    {
-        printf("Failed to get kern.osrelease size.");
-        return -1;
-    }
-    
-    assert(size <= UINT32_MAX);
-    uint32_t bufsize = (uint32_t)size;
-    
-    char *osrelease = OSMalloc(bufsize, g_tag);
-    if (osrelease == NULL)
-    {
-        printf("Failed to allocate memory.");
-        return -1;
-    }
-    
-    if (sysctlbyname("kern.osrelease", osrelease, &size, NULL, 0))
-    {
-        printf("Failed to get kern.osrelease.");
-        OSFree(osrelease, bufsize, g_tag);
-        return -1;
-    }
-    
-    char major[3] = {0};
-    strncpy(major, osrelease, 2);
-    OSFree(osrelease, bufsize, g_tag);
-    
-    return (int)strtol(major, (char**)NULL, 10);
-}
-
-
 static struct psysent find_sysent(uintptr_t start, size_t size)
 {
-    int major = get_kernel_version();
-    printf("kernel version is %d\n", major);
+    printf("kernel version is %d\n", version_major);
     
     uintptr_t addr = start;
     
@@ -153,22 +121,22 @@ static struct psysent find_sysent(uintptr_t start, size_t size)
             _sysent[SYS_wait4].sy_narg == 4 &&  \
             _sysent[SYS_ptrace].sy_narg == 4)
         
-        if (major == 14) {
+        if (version_major == 14) {
             struct sysent_yosemite* sysent = (struct sysent_yosemite*)addr;
             if (sysent_verify(sysent)) {
-                struct psysent res = {sysent, major};
+                struct psysent res = {sysent, version_major};
                 return res;
             }
-        } else if (major == 13) {
+        } else if (version_major == 13) {
             struct sysent_mavericks* sysent = (struct sysent_mavericks*)addr;
             if (sysent_verify(sysent)) {
-                struct psysent res = {sysent, major};
+                struct psysent res = {sysent, version_major};
                 return res;
             }
         } else {
             struct sysent* sysent = (struct sysent*)addr;
             if (sysent_verify(sysent)) {
-                struct psysent res = {sysent, major};
+                struct psysent res = {sysent, version_major};
                 return res;
             }
         }
@@ -216,8 +184,25 @@ static exit_fptr_t g_orig_exit = NULL;
 
 int32_t my_exit(proc_t p, struct exit_args *uap, int *retval)
 {
-    printf("Calling my_exit!\n");
+    printf("pid %d calls exit(%d)\n", proc_pid(p), uap->rval);
     return g_orig_exit(p, uap, retval);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+static int32_t g_pid = 0; // Contents of debug.killhook.pid
+static int sysctl_killhook_pid SYSCTL_HANDLER_ARGS;
+
+SYSCTL_NODE(_debug, OID_AUTO, killhook, CTLFLAG_RW, 0, "kill hook API");
+SYSCTL_PROC(_debug_killhook, OID_AUTO, pid, (CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_SECURE), &g_pid, 0, sysctl_killhook_pid, "I", "Protected PID");
+
+static int sysctl_killhook_pid(struct sysctl_oid *oidp, void *arg1, int arg2, struct sysctl_req *req)
+{
+    // Do some processing of our own , if neccesary
+    printf("sysctl_killhook_pid: %p, %d, %d\n", arg1, *(int32_t*)arg1, arg2);
+    return sysctl_handle_int( oidp, oidp->oid_arg1 , oidp->oid_arg2 , req );
 }
 
 kern_return_t test_start(kmod_info_t * ki, void *d)
@@ -233,7 +218,6 @@ kern_return_t test_start(kmod_info_t * ki, void *d)
     // For that we will find kernel base address, find data segment in kernel mach-o headers
     // and finally search for sysent pattern in data segment
     //
-    
     
     uintptr_t kernel_base = find_kernel_base();
     if (kernel_base == INVALID_VADDR) {
@@ -277,11 +261,17 @@ kern_return_t test_start(kmod_info_t * ki, void *d)
     
     printf("original exit @ %p, hooked @ %p\n", g_orig_exit, my_exit);
     
+    sysctl_register_oid(&sysctl__debug_killhook);
+    sysctl_register_oid(&sysctl__debug_killhook_pid);
+    
     return KERN_SUCCESS;
 }
 
 kern_return_t test_stop(kmod_info_t *ki, void *d)
 {
+    sysctl_unregister_oid(&sysctl__debug_killhook);
+    sysctl_unregister_oid(&sysctl__debug_killhook_pid);
+    
     if (g_orig_exit != NULL)
     {
         AsmDisableWriteProtection();
