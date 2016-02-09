@@ -7,13 +7,19 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3F9A1A801C66266300F994FF /* helpers.s in Sources */ = {isa = PBXBuildFile; fileRef = 3F9A1A7F1C66266300F994FF /* helpers.s */; };
 		3F9A4BB01C6612AD0013F9B1 /* test.c in Sources */ = {isa = PBXBuildFile; fileRef = 3F9A4BAF1C6612AD0013F9B1 /* test.c */; };
+		3FBB88931C6A433300ABCA77 /* KernelResolver.c in Sources */ = {isa = PBXBuildFile; fileRef = 3FBB88911C6A433300ABCA77 /* KernelResolver.c */; };
+		3FBB88941C6A433300ABCA77 /* KernelResolver.h in Headers */ = {isa = PBXBuildFile; fileRef = 3FBB88921C6A433300ABCA77 /* KernelResolver.h */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		3F9A1A7F1C66266300F994FF /* helpers.s */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.asm; path = helpers.s; sourceTree = "<group>"; };
 		3F9A4BAC1C6612AD0013F9B1 /* test.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = test.kext; sourceTree = BUILT_PRODUCTS_DIR; };
 		3F9A4BAF1C6612AD0013F9B1 /* test.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = test.c; sourceTree = "<group>"; };
 		3F9A4BB11C6612AD0013F9B1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		3FBB88911C6A433300ABCA77 /* KernelResolver.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = KernelResolver.c; sourceTree = "<group>"; };
+		3FBB88921C6A433300ABCA77 /* KernelResolver.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = KernelResolver.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -48,6 +54,9 @@
 			children = (
 				3F9A4BAF1C6612AD0013F9B1 /* test.c */,
 				3F9A4BB11C6612AD0013F9B1 /* Info.plist */,
+				3F9A1A7F1C66266300F994FF /* helpers.s */,
+				3FBB88911C6A433300ABCA77 /* KernelResolver.c */,
+				3FBB88921C6A433300ABCA77 /* KernelResolver.h */,
 			);
 			path = test;
 			sourceTree = "<group>";
@@ -59,6 +68,7 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3FBB88941C6A433300ABCA77 /* KernelResolver.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -94,6 +104,7 @@
 				TargetAttributes = {
 					3F9A4BAB1C6612AD0013F9B1 = {
 						CreatedOnToolsVersion = 7.2;
+						DevelopmentTeam = 4D8GDH2BVF;
 					};
 				};
 			};
@@ -129,7 +140,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3FBB88931C6A433300ABCA77 /* KernelResolver.c in Sources */,
 				3F9A4BB01C6612AD0013F9B1 /* test.c in Sources */,
+				3F9A1A801C66266300F994FF /* helpers.s in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -218,7 +231,8 @@
 		3F9A4BB51C6612AD0013F9B1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_IDENTITY = "Developer ID";
+				CODE_SIGN_IDENTITY = "Mac Developer";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Mac Developer";
 				INFOPLIST_FILE = test/Info.plist;
 				MODULE_NAME = acme.test;
 				MODULE_START = test_start;
@@ -226,6 +240,7 @@
 				MODULE_VERSION = 1.0.0d1;
 				PRODUCT_BUNDLE_IDENTIFIER = acme.test;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE = "";
 				WRAPPER_EXTENSION = kext;
 			};
 			name = Debug;
@@ -233,7 +248,8 @@
 		3F9A4BB61C6612AD0013F9B1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_IDENTITY = "Developer ID";
+				CODE_SIGN_IDENTITY = "Mac Developer";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Mac Developer";
 				INFOPLIST_FILE = test/Info.plist;
 				MODULE_NAME = acme.test;
 				MODULE_START = test_start;
@@ -241,6 +257,7 @@
 				MODULE_VERSION = 1.0.0d1;
 				PRODUCT_BUNDLE_IDENTIFIER = acme.test;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE = "";
 				WRAPPER_EXTENSION = kext;
 			};
 			name = Release;
@@ -264,6 +281,7 @@
 				3F9A4BB61C6612AD0013F9B1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};

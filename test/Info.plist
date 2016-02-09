@@ -23,6 +23,19 @@
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2016 acme. All rights reserved.</string>
 	<key>OSBundleLibraries</key>
-	<dict/>
+	<dict>
+	    <key>com.apple.kpi.bsd</key>
+        <string>11.0</string>
+        <key>com.apple.kpi.libkern</key>
+        <string>11.0</string>
+        <key>com.apple.kpi.mach</key>
+        <string>11.0</string>
+        <key>com.apple.kpi.unsupported</key>
+        <string>11.0</string>
+        <key>com.apple.kpi.iokit</key>
+        <string>11.0</string>
+        <key>com.apple.kpi.dsep</key>
+        <string>11.0</string>
+    </dict>
 </dict>
 </plist>
