@@ -7,19 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		3F9A1A801C66266300F994FF /* helpers.s in Sources */ = {isa = PBXBuildFile; fileRef = 3F9A1A7F1C66266300F994FF /* helpers.s */; };
+		3F9A1A801C66266300F994FF /* arch.s in Sources */ = {isa = PBXBuildFile; fileRef = 3F9A1A7F1C66266300F994FF /* arch.s */; };
 		3F9A4BB01C6612AD0013F9B1 /* test.c in Sources */ = {isa = PBXBuildFile; fileRef = 3F9A4BAF1C6612AD0013F9B1 /* test.c */; };
-		3FBB88931C6A433300ABCA77 /* KernelResolver.c in Sources */ = {isa = PBXBuildFile; fileRef = 3FBB88911C6A433300ABCA77 /* KernelResolver.c */; };
-		3FBB88941C6A433300ABCA77 /* KernelResolver.h in Headers */ = {isa = PBXBuildFile; fileRef = 3FBB88921C6A433300ABCA77 /* KernelResolver.h */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		3F9A1A7F1C66266300F994FF /* helpers.s */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.asm; path = helpers.s; sourceTree = "<group>"; };
+		3F9A1A7F1C66266300F994FF /* arch.s */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.asm; path = arch.s; sourceTree = "<group>"; };
 		3F9A4BAC1C6612AD0013F9B1 /* test.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = test.kext; sourceTree = BUILT_PRODUCTS_DIR; };
 		3F9A4BAF1C6612AD0013F9B1 /* test.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = test.c; sourceTree = "<group>"; };
 		3F9A4BB11C6612AD0013F9B1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		3FBB88911C6A433300ABCA77 /* KernelResolver.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = KernelResolver.c; sourceTree = "<group>"; };
-		3FBB88921C6A433300ABCA77 /* KernelResolver.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = KernelResolver.h; sourceTree = "<group>"; };
+		3FAA884B1C6A78DE0079CDE6 /* arch.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = arch.h; sourceTree = "<group>"; };
+		3FAA884C1C6A83650079CDE6 /* sysent.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = sysent.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,9 +52,9 @@
 			children = (
 				3F9A4BAF1C6612AD0013F9B1 /* test.c */,
 				3F9A4BB11C6612AD0013F9B1 /* Info.plist */,
-				3F9A1A7F1C66266300F994FF /* helpers.s */,
-				3FBB88911C6A433300ABCA77 /* KernelResolver.c */,
-				3FBB88921C6A433300ABCA77 /* KernelResolver.h */,
+				3F9A1A7F1C66266300F994FF /* arch.s */,
+				3FAA884B1C6A78DE0079CDE6 /* arch.h */,
+				3FAA884C1C6A83650079CDE6 /* sysent.h */,
 			);
 			path = test;
 			sourceTree = "<group>";
@@ -68,7 +66,6 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3FBB88941C6A433300ABCA77 /* KernelResolver.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -140,9 +137,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3FBB88931C6A433300ABCA77 /* KernelResolver.c in Sources */,
 				3F9A4BB01C6612AD0013F9B1 /* test.c in Sources */,
-				3F9A1A801C66266300F994FF /* helpers.s in Sources */,
+				3F9A1A801C66266300F994FF /* arch.s in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
