@@ -95,7 +95,7 @@ struct sysent_yosemite {            /* system call table */
 };
 
 // Generic holder
-struct psysent {
+typedef struct {
     union {
         void* raw;
         struct sysent* p12;
@@ -104,6 +104,16 @@ struct psysent {
     } u;
     
     int ver;
-};
+} psysent_t;
+
+#define MACH_MSG_TRAP 31
+#define MACH_MSG_OVERWRITE_TRAP 32
+
+typedef struct {
+    int                 mach_trap_arg_count;
+    kern_return_t       (*mach_trap_function)(void *);
+    void*       		*mach_trap_arg_munge32; /* system call argument munger routine for 32-bit */
+    int                 mach_trap_u32_words; /* number of 32-bit words to copyin for U32 */
+} mach_trap_table_t;
 
 #endif /* sysent_h */

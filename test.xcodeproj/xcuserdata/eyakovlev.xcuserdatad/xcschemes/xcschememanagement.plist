@@ -9,9 +9,19 @@
 			<key>orderHint</key>
 			<integer>0</integer>
 		</dict>
+		<key>victim.xcscheme</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>1</integer>
+		</dict>
 	</dict>
 	<key>SuppressBuildableAutocreation</key>
 	<dict>
+		<key>3F98FC961C6D1260006671EE</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
 		<key>3F9A4BAB1C6612AD0013F9B1</key>
 		<dict>
 			<key>primary</key>
