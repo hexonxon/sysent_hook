@@ -94,26 +94,23 @@ struct sysent_yosemite {            /* system call table */
                                      */
 };
 
-// Generic holder
-typedef struct {
-    union {
-        void* raw;
-        struct sysent* p12;
-        struct sysent_mavericks* p13;
-        struct sysent_yosemite* p14;
-    } u;
-    
-    int ver;
-} psysent_t;
 
 #define MACH_MSG_TRAP 31
 #define MACH_MSG_OVERWRITE_TRAP 32
 
+// 10.8
 typedef struct {
     int                 mach_trap_arg_count;
-    kern_return_t       (*mach_trap_function)(void *);
-    void*       		*mach_trap_arg_munge32; /* system call argument munger routine for 32-bit */
+    void*               mach_trap_function;
+} mach_trap_t;
+
+// 10.9+
+typedef struct {
+    int                 mach_trap_arg_count; /* Number of trap arguments (Arch independant) */
+    void*               mach_trap_function;
+    void*               mach_trap_arg_munge32; /* system call argument munger routine for 32-bit */
     int                 mach_trap_u32_words; /* number of 32-bit words to copyin for U32 */
-} mach_trap_table_t;
+} mach_trap_mavericks_t;
+
 
 #endif /* sysent_h */
