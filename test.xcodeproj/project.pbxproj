@@ -7,10 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		3F02958F1C7257EE00982EAC /* load.sh in Resources */ = {isa = PBXBuildFile; fileRef = 3F02958E1C7257EE00982EAC /* load.sh */; };
 		3F0295911C7277A500982EAC /* resolver.h in Headers */ = {isa = PBXBuildFile; fileRef = 3F0295901C7277A500982EAC /* resolver.h */; };
 		3F0295931C7277F400982EAC /* resolver.c in Sources */ = {isa = PBXBuildFile; fileRef = 3F0295921C7277F400982EAC /* resolver.c */; };
 		3F0295951C7281A400982EAC /* test.h in Headers */ = {isa = PBXBuildFile; fileRef = 3F0295941C7281A400982EAC /* test.h */; };
+		3F276F1D1C734B570028A378 /* load.sh in Resources */ = {isa = PBXBuildFile; fileRef = 3F276F1C1C734B570028A378 /* load.sh */; };
 		3F98FC9F1C6D1280006671EE /* victim.c in Sources */ = {isa = PBXBuildFile; fileRef = 3F98FC9E1C6D1280006671EE /* victim.c */; };
 		3F9A4BB01C6612AD0013F9B1 /* test.c in Sources */ = {isa = PBXBuildFile; fileRef = 3F9A4BAF1C6612AD0013F9B1 /* test.c */; };
 /* End PBXBuildFile section */
@@ -28,10 +28,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		3F02958E1C7257EE00982EAC /* load.sh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.sh; path = load.sh; sourceTree = "<group>"; };
 		3F0295901C7277A500982EAC /* resolver.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = resolver.h; sourceTree = "<group>"; };
 		3F0295921C7277F400982EAC /* resolver.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = resolver.c; sourceTree = "<group>"; };
 		3F0295941C7281A400982EAC /* test.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = test.h; sourceTree = "<group>"; };
+		3F276F1C1C734B570028A378 /* load.sh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.sh; path = load.sh; sourceTree = "<group>"; };
 		3F98FC971C6D1260006671EE /* victim */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = victim; sourceTree = BUILT_PRODUCTS_DIR; };
 		3F98FC9E1C6D1280006671EE /* victim.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = victim.c; sourceTree = "<group>"; };
 		3F9A4BAC1C6612AD0013F9B1 /* test.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = test.kext; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -69,6 +69,7 @@
 		3F9A4BA21C6612AD0013F9B1 = {
 			isa = PBXGroup;
 			children = (
+				3F276F1C1C734B570028A378 /* load.sh */,
 				3F9A4BAE1C6612AD0013F9B1 /* test */,
 				3F98FC981C6D1260006671EE /* victim */,
 				3F9A4BAD1C6612AD0013F9B1 /* Products */,
@@ -87,7 +88,6 @@
 		3F9A4BAE1C6612AD0013F9B1 /* test */ = {
 			isa = PBXGroup;
 			children = (
-				3F02958E1C7257EE00982EAC /* load.sh */,
 				3F9A4BAF1C6612AD0013F9B1 /* test.c */,
 				3F9A4BB11C6612AD0013F9B1 /* Info.plist */,
 				3FAA884C1C6A83650079CDE6 /* sysent.h */,
@@ -189,7 +189,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3F02958F1C7257EE00982EAC /* load.sh in Resources */,
+				3F276F1D1C734B570028A378 /* load.sh in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

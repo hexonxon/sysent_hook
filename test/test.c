@@ -213,25 +213,22 @@ static void* find_mach_trap_table(uintptr_t start, size_t size)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 
+// Traced task context
+static task_t g_task = NULL;
+static int32_t g_pid = 0;       // PID we will protect, set through sysctl node
+static int g_unhook = 0;        // Dummy sysctl node var to unhook everything before exiting
+
 // Private kernel symbols manually resolved on kext start
 static task_t(*proc_task)(proc_t) = NULL;
 static ipc_space_t(*get_task_ipcspace)(task_t) = NULL;
-static kern_return_t (*mach_port_names_fptr)(ipc_space_t task, mach_port_name_array_t *names, mach_msg_type_number_t *namesCnt, mach_port_type_array_t *types, mach_msg_type_number_t *typesCnt) = NULL;
+static task_t(*port_name_to_task)(mach_port_name_t) = NULL;
+
+static void* g_sysent_table = NULL;
+static void* g_mach_trap_table = NULL;
 
 // Lock protects pid changes from concurrent syscalls
 static lck_grp_t* g_lock_group = NULL;
 static lck_mtx_t* g_task_lock = NULL;
-
-// Traced task context
-static task_t g_task = NULL;
-static int32_t g_pid = 0;       // PID we will protect, set through sysctl node
-static int g_unhook = 0;        // Dummy sysctl node var to unhook syscalls
-
-static int(*g_orig_kill)(proc_t cp, void *uap, __unused int32_t *retval) = NULL;
-static mach_msg_return_t (*g_mach_msg_trap)(void* args) = NULL;
-
-static void* g_sysent_table = NULL;
-static void* g_mach_trap_table = NULL;
 
 static void* sysent_get_call(int callnum) {
     switch(version_major) {
@@ -247,6 +244,12 @@ static void sysent_set_call(int callnum, void* sy_call) {
         case 13: ((struct sysent_mavericks*)g_sysent_table)[callnum].sy_call = sy_call; break;
         default: ((struct sysent*)g_sysent_table)[callnum].sy_call = sy_call; break;
     }
+}
+
+static void* sysent_hook_call(int callnum, void* hook) {
+    void* orig = sysent_get_call(callnum);
+    sysent_set_call(callnum, hook);
+    return orig;
 }
 
 static void* mach_table_get_trap(int trapnum) {
@@ -265,71 +268,22 @@ static void mach_table_set_trap(int trapnum, void* trap_function) {
     }
 }
 
-static int sysctl_killhook_pid SYSCTL_HANDLER_ARGS;
-static int sysctl_killhook_unhook SYSCTL_HANDLER_ARGS;
-
-SYSCTL_NODE(_debug, OID_AUTO, killhook, CTLFLAG_RW, 0, "kill hook API");
-SYSCTL_PROC(_debug_killhook, OID_AUTO, pid, (CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_SECURE), &g_pid, 0, sysctl_killhook_pid, "I", "Protected PID");
-SYSCTL_PROC(_debug_killhook, OID_AUTO, unhook, (CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_SECURE), &g_unhook, 0, sysctl_killhook_unhook, "I", "");
-                  
-static int sysctl_killhook_pid(struct sysctl_oid *oidp, void *arg1, int arg2, struct sysctl_req *req)
-{
-    
-    int32_t curPid = g_pid;
-    int res = sysctl_handle_int(oidp, oidp->oid_arg1, oidp->oid_arg2, req);
-    
-    if (g_pid != curPid) {
-        
-        //lck_mtx_lock(g_task_lock);
-        
-        proc_t proc = proc_find(g_pid);
-        if (proc) {
-            // Use private symbols to prepare task info
-            g_task = proc_task(proc);
-            proc_rele(proc);
-            
-            //mach_port_name_array_t names;
-            //mach_msg_type_number_t namesCnt;
-            //mach_port_type_array_t types;
-            //mach_msg_type_number_t typesCnt;
-            //kern_return_t err = mach_port_names_fptr(get_task_ipcspace(g_task), &names, &namesCnt, &types, &typesCnt);
-            //if (err) {
-            //    printf("mach_port_names failed: %d\n", err);
-            //}
-            
-            printf("PID changed to %d, task %p\n", g_pid, g_task);
-            //printf("Got %d port names\n", namesCnt);
-        }
-        
-        //lck_mtx_unlock(g_task_lock);
-
-    }
-    
-    return res;
-}
-
-static int sysctl_killhook_unhook(struct sysctl_oid *oidp, void *arg1, int arg2, struct sysctl_req *req)
-{
-    int res = sysctl_handle_int(oidp, oidp->oid_arg1, oidp->oid_arg2, req);
-    if (g_unhook && g_sysent_table && g_mach_trap_table)
-    {
-        // TODO: it is dangerous to just overwrite syscalls again, we need to make sure that there are no pending syscalls
-        disable_vm_protection();
-        {
-            mach_table_set_trap(MACH_MSG_TRAP, g_mach_msg_trap);
-            sysent_set_call(SYS_kill, (sy_call_t*)g_orig_kill);
-        }
-        enable_vm_protection();
-    }
-    
-    return res;
+static void* mach_table_hook_trap(int trapnum, void* hook) {
+    void* orig = mach_table_get_trap(trapnum);
+    mach_table_set_trap(trapnum, hook);
+    return orig;
 }
 
 
 //
-// Mach msg hooks
-// Intercept task_terminate IPC on our task's kernel port
+// Mach hooks
 //
+
+
+static mach_msg_return_t (*g_mach_msg_trap)(void* args) = NULL;
+static mach_msg_return_t (*g_mach_msg_overwrite_trap)(void* args) = NULL;
+
+#define MIG_TASK_TERMINATE_ID 3401 /* Taken from osfmk/mach/task.defs */
 
 #define PAD_ARG_(arg_type, arg_name) \
    char arg_name##_l_[PADL_(arg_type)]; arg_type arg_name; char arg_name##_r_[PADR_(arg_type)];
@@ -348,8 +302,7 @@ struct mach_msg_overwrite_trap_args {
     PAD_ARG_(user_addr_t, rcv_msg);  /* Unused on mach_msg_trap */
 };
 
-#define MIG_TASK_TERMINATE_ID 3401 /* Taken from osfmk/mach/task.defs */
-
+// User mode message header definition differs from in-kernel one
 typedef	struct
 {
     mach_msg_bits_t     msgh_bits;
@@ -360,147 +313,47 @@ typedef	struct
     mach_msg_id_t		msgh_id;
 } mach_user_msg_header_t;
 
+mach_msg_return_t mach_msg_trap_common(struct mach_msg_overwrite_trap_args *args, mach_msg_return_t(*orig_handler)(void* args))
+{
+    if (!g_task || !(args->option & MACH_SEND_MSG)) {
+        return orig_handler(args);
+    }
+    
+    mach_user_msg_header_t hdr;
+    if (args->send_size < sizeof(hdr)) {
+        return MACH_SEND_MSG_TOO_SMALL; // "Sorry, your message is too small for this rootkit to process correctly"
+    }
+    
+    copyin(args->msg, &hdr, sizeof(hdr));
+    task_t remote_task = port_name_to_task(hdr.msgh_remote_port);
+    if (g_task == remote_task) {
+        // TODO: also check if this is a task kernel port
+        printf("my_mach_msg_trap: blocking task_terminate\n");
+        return MACH_SEND_INVALID_RIGHT;
+    }
+    
+    return orig_handler(args);
+}
+
+// mach_msg_trap hook
 mach_msg_return_t my_mach_msg_trap(struct mach_msg_overwrite_trap_args *args)
 {
-    task_t task = current_task();
-    proc_t proc = current_proc();
-    pid_t pid = proc_pid(proc);
-    
-    if (!g_pid || pid != g_pid) {
-        return g_mach_msg_trap(args);
-    }
-    
-    //lck_mtx_lock(g_task_lock);
-    
-    printf("my_mach_msg_trap: %p (%zu)\n", args, sizeof(*args));
-    printf(" msg = %llx\n", args->msg);
-    printf(" option = %x\n", args->option);
-    printf(" send_size = %d\n", args->send_size);
-    printf(" rcv_size = %d\n", args->rcv_size);
-    printf(" timeout = %d\n", args->timeout);
-    
-    //mach_port_names
-    //mach_port_name_t
-    mach_port_t port;
-    kern_return_t err = task_get_special_port(task, TASK_KERNEL_PORT, &port);
-    if (err) {
-        printf("Failed to get task special port: %d\n", err);
-    } else {
-        printf("task kernel port: %p, %d\n", port, CAST_MACH_PORT_TO_NAME(port));
-    }
-    
-    
-    /* Let's see what is inside the message */
-    if ((args->option & MACH_SEND_MSG) && (args->send_size)) {
-        mach_user_msg_header_t* hdr = OSMalloc(args->send_size, g_tag);
-        if (hdr) {
-            copyin(args->msg, hdr, args->send_size);
-            for (int i = 0; i < args->send_size; ++i) {
-                if ((i % 4) == 0) {
-                    printf("\n");
-                }
-                
-                printf("0x%02x ", ((uint8_t*)hdr)[i]);
-            }
-            printf("\n");
-            
-            printf(" msg bits 0x%x, size %d, id %d, %d -> %d\n", hdr->msgh_bits, hdr->msgh_size, hdr->msgh_id, hdr->msgh_local_port, hdr->msgh_remote_port);
-            
-            
-            //if (hdr->msgh_id == MIG_TASK_TERMINATE_ID) {
-            //    printf("Blocking task_terminate");
-            //    return MACH_SEND_INVALID_DATA;
-            //}
-            
-            OSFree(hdr, args->send_size, g_tag);
-        }
-        
-        //mach_port_t remote_port = hdr->msgh_remote_port;
-        //mach_port_type_t type;
-        //mach_port_type(get_task_ipcspace(task), remote_port, &type);
-    }
-    
-    //lck_mtx_unlock(g_task_lock);
-    
-    printf(" calling %p\n", g_mach_msg_trap);
-    mach_msg_return_t res = g_mach_msg_trap(args);
-    printf(" result = 0x%x\n", res);
-    
-    
-#if 0
-    if ((res == MACH_MSG_SUCCESS) && (args->option & MACH_RCV_MSG) && (args->rcv_size)) {
-        printf(" LOOK AT ME MA! \n");
-        
-        mach_msg_header_t* hdr = OSMalloc(args->rcv_size, g_tag);
-        if (hdr) {
-            copyin(args->msg, hdr, args->rcv_size);
-            printf(" msg bits 0x%x, size %d, id %d, %p -> %p\n", hdr->msgh_bits, hdr->msgh_size, hdr->msgh_id, hdr->msgh_local_port, hdr->msgh_remote_port);
-            OSFree(hdr, args->rcv_size, g_tag);
-        }
+    return mach_msg_trap_common(args, g_mach_msg_trap);
+}
 
-        //mach_port_t remote_port = hdr->msgh_remote_port;
-        //mach_port_type_t type;
-        //mach_port_type(get_task_ipcspace(task), remote_port, &type);
-    }
-#endif
-    return res;
-
-    
-    //if (args->option & MACH_RCV_MSG) {
-    //    return MACH_RCV_TIMED_OUT;
-    //}
-    
-    //return g_mach_msg_trap(args);
-    
-    /*
-       
-    //mach_msg_header_t* hdr = OSMalloc(args->send_size, g_tag);
-    //if (hdr) {
-    //    copyin(args->msg, hdr, args->send_size);
-    //    printf(" msg bits 0x%x, size %d, id %d, %p -> %p\n", hdr->msgh_bits, hdr->msgh_size, hdr->msgh_id, hdr->msgh_local_port, hdr->msgh_remote_port);
-    //    OSFree(hdr, args->send_size, g_tag);
-    //}
-    
-        
-    if ((args->option & MACH_SEND_MSG) && (args->send_size)) {
-        mach_msg_header_t* hdr = OSMalloc(args->send_size, g_tag);
-        if (hdr) {
-            copyin(args->msg, hdr, args->send_size);
-            printf(" msg bits 0x%x, size %d, id %d, %p -> %p\n", hdr->msgh_bits, hdr->msgh_size, hdr->msgh_id, hdr->msgh_local_port, hdr->msgh_remote_port);
-            
-            for (int i = 0; i < args->send_size; ++i) {
-                if ((i % 32) == 0) {
-                    printf("\n");
-                }
-                
-                printf(" 0x%02x", ((uint8_t*)hdr)[i]);
-            }
-            
-            OSFree(hdr, args->send_size, g_tag);
-        }
-    }
-    
-    int res = g_mach_msg_trap(args);
-        
-    printf("returning %d\n", res);
-    return res;
-    
-    
-    //for (int i = 0; i < 2; ++i) {
-    //    printf(" 0x%x\n", ((uint32_t*)args)[i]);
-    //}
-
-    //return g_mach_msg_trap(args);
-     */
-    
-
+// mach_msg_overwrite_trap hook
+mach_msg_return_t my_mach_msg_overwrite_trap(struct mach_msg_overwrite_trap_args *args)
+{
+    return mach_msg_trap_common(args, g_mach_msg_overwrite_trap);
 }
 
 
 //
 // BSD kill(2) hook
-// Intercept BSD signals
 //
+
+
+static int(*g_orig_kill)(proc_t cp, void *uap, __unused int32_t *retval) = NULL;
 
 struct kill_args {
     char pid_l_[PADL_(int)]; int pid; char pid_r_[PADR_(int)];
@@ -534,6 +387,51 @@ int my_kill(proc_t cp, struct kill_args *uap, __unused int32_t *retval)
 //
 // Entry and init
 //
+
+
+static int sysctl_killhook_pid SYSCTL_HANDLER_ARGS;
+static int sysctl_killhook_unhook SYSCTL_HANDLER_ARGS;
+
+SYSCTL_NODE(_debug, OID_AUTO, killhook, CTLFLAG_RW, 0, "kill hook API");
+SYSCTL_PROC(_debug_killhook, OID_AUTO, pid, (CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_SECURE), &g_pid, 0, sysctl_killhook_pid, "I", "");
+SYSCTL_PROC(_debug_killhook, OID_AUTO, unhook, (CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_SECURE), &g_unhook, 0, sysctl_killhook_unhook, "I", "");
+
+static int sysctl_killhook_pid(struct sysctl_oid *oidp, void *arg1, int arg2, struct sysctl_req *req)
+{
+    
+    int32_t curPid = g_pid;
+    int res = sysctl_handle_int(oidp, oidp->oid_arg1, oidp->oid_arg2, req);
+    
+    if (g_pid != curPid) {
+        
+        proc_t proc = proc_find(g_pid);
+        if (proc) {
+            g_task = proc_task(proc);
+            proc_rele(proc);
+            printf("PID changed to %d, task %p\n", g_pid, g_task);
+        }
+    }
+    
+    return res;
+}
+
+static int sysctl_killhook_unhook(struct sysctl_oid *oidp, void *arg1, int arg2, struct sysctl_req *req)
+{
+    int res = sysctl_handle_int(oidp, oidp->oid_arg1, oidp->oid_arg2, req);
+    if (g_unhook && g_sysent_table && g_mach_trap_table)
+    {
+        // TODO: it is dangerous to just overwrite syscalls again, we need to make sure that there are no pending syscalls
+        disable_vm_protection();
+        {
+            mach_table_set_trap(MACH_MSG_OVERWRITE_TRAP, g_mach_msg_overwrite_trap);
+            mach_table_set_trap(MACH_MSG_TRAP, g_mach_msg_trap);
+            sysent_set_call(SYS_kill, (sy_call_t*)g_orig_kill);
+        }
+        enable_vm_protection();
+    }
+    
+    return res;
+}
 
 kern_return_t test_start(kmod_info_t * ki, void *d)
 {
@@ -578,8 +476,8 @@ kern_return_t test_start(kmod_info_t * ki, void *d)
     // Resolve some private symbols we're going to need
     proc_task = resolve_kernel_symbol("_proc_task", kernel_base);
     get_task_ipcspace = resolve_kernel_symbol("_get_task_ipcspace", kernel_base);
-    mach_port_names_fptr = resolve_kernel_symbol("_mach_port_names", kernel_base);
-    if (!proc_task || !get_task_ipcspace || !mach_port_names_fptr) {
+    port_name_to_task = resolve_kernel_symbol("_port_name_to_task", kernel_base);
+    if (!proc_task || !get_task_ipcspace || !port_name_to_task) {
         printf("Could not resolve private symbols\n");
         return KERN_FAILURE;
     }
@@ -610,16 +508,13 @@ kern_return_t test_start(kmod_info_t * ki, void *d)
     
     printf("mach trap table @ %p\n", g_mach_trap_table);
     
-    
     // sysent is in read-only memory since 10.8.
     // good thing that intel architecture allows us to disable vm write protection completely from ring0 with a CR0 bit
-    g_orig_kill = sysent_get_call(SYS_kill);
-    g_mach_msg_trap = mach_table_get_trap(MACH_MSG_TRAP);
-    
     disable_vm_protection();
     {
-        sysent_set_call(SYS_kill, (sy_call_t*)my_kill);
-        mach_table_set_trap(MACH_MSG_TRAP, my_mach_msg_trap);
+        g_orig_kill = sysent_hook_call(SYS_kill, (sy_call_t*)my_kill);
+        g_mach_msg_trap = mach_table_hook_trap(MACH_MSG_TRAP, my_mach_msg_trap);
+        g_mach_msg_overwrite_trap = mach_table_hook_trap(MACH_MSG_OVERWRITE_TRAP, my_mach_msg_overwrite_trap);
     }
     enable_vm_protection();
 
