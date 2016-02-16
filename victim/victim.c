@@ -67,7 +67,7 @@ int main(int argc, char** argv)
         return DoListen();
     }
     
-    printf("%d, %d\n", getpid(), sizeof(mach_msg_header_t));
+    printf("%d\n", getpid());
     
     int pid = atoi(argv[1]);
     printf("Terminating pid %d\n", pid);

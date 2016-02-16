@@ -12,4 +12,7 @@
 // kext-wide malloc tag
 extern OSMallocTag g_tag;
 
+// kext-wide lock group
+extern lck_grp_t* g_lock_group;
+
 #endif /* test_h */

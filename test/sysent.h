@@ -22,16 +22,20 @@
  * Modified by me to support yosemite
  */
 
-#define PAD_(t) (sizeof(uint64_t) <= sizeof(t) ? \
-0 : sizeof(uint64_t) - sizeof(t))
+#define PAD_(t) (sizeof(uint64_t) <= sizeof(t) ? 0 : sizeof(uint64_t) - sizeof(t))
 
 #if BYTE_ORDER == LITTLE_ENDIAN
-#define PADL_(t)        0
-#define PADR_(t)        PAD_(t)
+#   define PADL_(t)        0
+#   define PADR_(t)        PAD_(t)
 #else
-#define PADL_(t)        PAD_(t)
-#define PADR_(t)        0
+#   define PADL_(t)        PAD_(t)
+#   define PADR_(t)        0
 #endif
+
+#define PAD_ARG_(arg_type, arg_name) \
+    char arg_name##_l_[PADL_(arg_type)]; arg_type arg_name; char arg_name##_r_[PADR_(arg_type)];
+
+#define PAD_ARG_8
 
 /** ptrace request */
 #define PT_DENY_ATTACH 31

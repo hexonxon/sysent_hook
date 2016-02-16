@@ -40,8 +40,20 @@ struct nlist_64 {
     uint64_t n_value;       /* value of this symbol (or stab offset) */
 };
 
-struct segment_command_64* find_segment_64(struct mach_header_64* mh, const char* segname)
+struct segment_command_64* find_segment_64(const struct mach_header_64* mh, const char* segname)
 {
+    if (!mh) {
+        return NULL;
+    }
+    
+    if (mh->magic != MH_MAGIC_64) {
+        return NULL;
+    }
+    
+    if (!segname) {
+        return NULL;
+    }
+    
     struct load_command *lc;
     struct segment_command_64 *seg, *foundseg = NULL;
     
@@ -65,8 +77,7 @@ struct segment_command_64* find_segment_64(struct mach_header_64* mh, const char
     return foundseg;
 }
 
-struct section_64 *
-find_section_64(struct segment_command_64 *seg, const char *name)
+struct section_64* find_section_64(struct segment_command_64 *seg, const char *name)
 {
     struct section_64 *sect, *foundsect = NULL;
     u_int i = 0;
